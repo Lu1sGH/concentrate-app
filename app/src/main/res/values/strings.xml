@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">FocusGuard</string>
+    <string name="accessibility_service_description">Permite detectar cuándo se abre una aplicación restringida y bloquearla después del tiempo de uso configurado (o al instante si el umbral es de 0 segundos).</string>
+</resources>

@@ -1,0 +1,146 @@
+{
+  "_instrucciones": {
+    "como_agregar_frases": "Simplemente agrega, edita o elimina elementos en cualquiera de las listas de abajo. El sistema detecta automáticamente cuántas frases existen sin necesidad de modificar ninguna variable de conteo en el código.",
+    "wildcards_disponibles": {
+      "{NomApp}": "Se reemplaza automáticamente por el nombre de la aplicación o categoría (ej. 'entrar a {NomApp} por tu bien').",
+      "{Intento}": "Se reemplaza por el número de intento actual en los pop-ups.",
+      "{Segundos}": "Se reemplaza por los segundos restantes en cuentas regresivas."
+    }
+  },
+  "pantalla_bloqueo_pasivo_agresivas": [
+    "¿Otra vez intentando abrir {NomApp}? Seguro que eso tan urgente que ibas a ver puede esperar… como todas tus responsabilidades.",
+    "Qué bonito sería que le pusieras las mismas ganas a tus pendientes que las que le pones a intentar entrar a {NomApp}.",
+    "Tranqui, {NomApp} va a seguir ahí mañana. Tu tiempo libre y tu productividad, en cambio, no tanto.",
+    "¿De verdad necesitas entrar a {NomApp} ahorita o solo estás huyendo de lo que tienes que hacer? Pregunta seria.",
+    "Mira nada más, tus dedos abrieron {NomApp} en piloto automático. Respira hondo, suelta el teléfono y finge que tienes autocontrol.",
+    "Tú mismo bloqueaste {NomApp} por tu bien porque sabías que esto iba a pasar. Hazle caso a tu versión más inteligente.",
+    "No te preocupes, nadie publicó nada en {NomApp} que te vaya a cambiar la vida en los últimos 5 minutos.",
+    "Cada vez que intentas entrar a {NomApp}, una meta personal llora en silencio. Ve a hacer algo de provecho.",
+    "¿Buscabas dopamina fácil en {NomApp}? Qué pena, hoy en el menú solo tenemos disciplina y decisiones adultas.",
+    "Interesante estrategia: abrir {NomApp} sabiendo que está bloqueada y esperar un resultado diferente. Spoiler: sigue bloqueada."
+  ],
+  "popup_intento_desactivar": [
+    {
+      "emoji": "🔒",
+      "titulo": "¡Operación Imposible!",
+      "mensaje": "El bloqueo para \"{NomApp}\" no se puede desactivar ni se permite aumentar su tiempo de uso. ¡Solo puedes reducirlo!"
+    },
+    {
+      "emoji": "🤡",
+      "titulo": "¿En serio lo intentaste? (x{Intento})",
+      "mensaje": "Presionaste 'Proseguir con la desactivación' pensando que iba a funcionar. Spoiler: \"{NomApp}\" sigue bloqueada por tu bien."
+    },
+    {
+      "emoji": "🛑",
+      "titulo": "Acceso Denegado (x{Intento})",
+      "mensaje": "Ese botón está desconectado de la realidad. No puedes desactivar el bloqueo de \"{NomApp}\" ni darte más minutos."
+    },
+    {
+      "emoji": "🤨",
+      "titulo": "Sospechoso... (x{Intento})",
+      "mensaje": "Tu yo del pasado nos advirtió que intentarías hacer trampa con \"{NomApp}\". No te vamos a dejar."
+    },
+    {
+      "emoji": "😈",
+      "titulo": "Bucle Infinito Activado (x{Intento})",
+      "mensaje": "Cada vez que presionas ese botón para liberar \"{NomApp}\", el pop-up se vuelve más fuerte. ¡Ríndete ya!"
+    },
+    {
+      "emoji": "🗿",
+      "titulo": "Voluntad de Piedra (x{Intento})",
+      "mensaje": "Puedes tocar el botón mil veces más. El bloqueo de \"{NomApp}\" es inamovible."
+    },
+    {
+      "emoji": "🤖",
+      "titulo": "Error 403: Sin Permiso (x{Intento})",
+      "mensaje": "Mis circuitos tienen prohibido aumentar el tiempo de uso o desactivar el bloqueo de \"{NomApp}\"."
+    },
+    {
+      "emoji": "🕵️",
+      "titulo": "Intento Registrado #{Intento}",
+      "mensaje": "Seguimos contando tus intentos de procrastinar en \"{NomApp}\"..."
+    },
+    {
+      "emoji": "🔥",
+      "titulo": "¡No insistas más! (x{Intento})",
+      "mensaje": "Cuidado con seguir presionando ese botón por \"{NomApp}\", podrías activar protocolos peligrosos..."
+    },
+    {
+      "emoji": "💀",
+      "titulo": "Terquedad Nivel Experto (x{Intento})",
+      "mensaje": "¿Todavía aquí intentando abrir \"{NomApp}\"? El botón de 'Proseguir con la desactivación' es una ilusión óptica."
+    },
+    {
+      "emoji": "🎭",
+      "titulo": "Ilusión de Libre Albedrío (x{Intento})",
+      "mensaje": "Tienes dos botones, pero ambos mantienen \"{NomApp}\" completamente bloqueada."
+    },
+    {
+      "emoji": "🧱",
+      "titulo": "Pared Inquebrantable (x{Intento})",
+      "mensaje": "Ni subiendo el tiempo ni apagando el interruptor: el bloqueo de \"{NomApp}\" no cede."
+    },
+    {
+      "emoji": "⚡",
+      "titulo": "Resistencia Inútil (x{Intento})",
+      "mensaje": "Llevas {Intento} intentos fallidos con \"{NomApp}\". Mejor deja el teléfono y haz algo productivo."
+    },
+    {
+      "emoji": "🦖",
+      "titulo": "Fósil Esperando (x{Intento})",
+      "mensaje": "Los dinosaurios se extinguieron esperando a que ese botón desactivara el bloqueo de \"{NomApp}\"."
+    },
+    {
+      "emoji": "🧙‍♂️",
+      "titulo": "¡No Pasarás! (x{Intento})",
+      "mensaje": "Ni con hechizos podrás aumentar el tiempo de uso de \"{NomApp}\"."
+    }
+  ],
+  "popup_botones_proseguir": [
+    "Proseguir con la desactivación",
+    "Proseguir con la desactivación (¿Seguro?)",
+    "Insistir en proseguir con la desactivación",
+    "Proseguir con la desactivación de todos modos"
+  ],
+  "popup_eventos_especiales": {
+    "intento_67": {
+      "emoji": "🗣️",
+      "titulo": "Intento #{Intento}",
+      "mensaje": "Sicseben 🗣️🔥"
+    },
+    "autodestruccion": {
+      "emoji": "💣",
+      "titulo": "🚨 ¡ALERTA CRÍTICA! (Intento #{Intento})",
+      "mensaje": "Autodestrucción del dispositivo en: {Segundos}"
+    }
+  },
+  "tutorial_bienvenida": [
+    {
+      "emoji": "📱",
+      "insignia": "Paso 1 de 3",
+      "titulo": "Elige tus distracciones",
+      "descripcion": "Explora todas las apps de tu dispositivo organizadas automáticamente en Redes Sociales, Apps Recreativas y Otras Apps."
+    },
+    {
+      "emoji": "⏱️",
+      "insignia": "Paso 2 de 3",
+      "titulo": "Define tu límite X",
+      "descripcion": "Bloquea una app al instante (0 segundos) o después de X tiempo de uso. Una vez activo, solo podrás reducir el tiempo, ¡nunca aumentarlo!"
+    },
+    {
+      "emoji": "🔒",
+      "insignia": "Paso 3 de 3",
+      "titulo": "Compromiso real de 24h",
+      "descripcion": "Intentar desactivar el bloqueo no funcionará. El ciclo se reinicia exactamente 24 horas después de que comienzas."
+    }
+  ],
+  "modulos_futuros": {
+    "notificaciones_alerta": [
+      "Estás a punto de agotar tu tiempo permitido en {NomApp}.",
+      "Recuerda que cerramos el acceso a {NomApp} por tu bien."
+    ],
+    "mensajes_motivacionales": [
+      "Hoy elegiste enfocarte en lugar de perder tiempo en {NomApp}."
+    ]
+  }
+}
