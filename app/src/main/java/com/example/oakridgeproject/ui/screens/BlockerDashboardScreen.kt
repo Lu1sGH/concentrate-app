@@ -49,7 +49,6 @@ fun BlockerDashboardScreen(
     hasAccessibilityPermission: Boolean,
     onToggleBlockerMaster: (Boolean) -> Unit,
     onUpdateAppThreshold: (String, Long) -> Unit,
-    onApplyCategoryBlock: (AppCategory, Boolean) -> Unit,
     onTriggerPrankUnblock: (String) -> Unit,
     onTestBlockApp: (InstalledAppInfo, AppBlockRule) -> Unit,
     onNavigateToAppsCatalog: () -> Unit,
@@ -59,11 +58,20 @@ fun BlockerDashboardScreen(
     modifier: Modifier = Modifier
 ) {
     var editingApp by remember { mutableStateOf<InstalledAppInfo?>(null) }
+    var selectedCategoryFilter by remember { mutableStateOf<AppCategory?>(null) }
 
-    val blockedAppsWithRules = remember(apps, blockRules) {
+    val allBlockedAppsWithRules = remember(apps, blockRules) {
         apps.mapNotNull { app ->
             val rule = blockRules[app.packageName]
             if (rule?.isBlocked == true) app to rule else null
+        }
+    }
+
+    val blockedAppsWithRules = remember(allBlockedAppsWithRules, selectedCategoryFilter) {
+        if (selectedCategoryFilter == null) {
+            allBlockedAppsWithRules
+        } else {
+            allBlockedAppsWithRules.filter { (app, _) -> app.category == selectedCategoryFilter }
         }
     }
 
@@ -78,7 +86,7 @@ fun BlockerDashboardScreen(
         item(key = "master_status_card") {
             MasterBlockerCard(
                 isBlockerEnabled = isBlockerEnabled,
-                blockedAppsCount = blockedAppsWithRules.size,
+                blockedAppsCount = allBlockedAppsWithRules.size,
                 onToggleMaster = { wantEnabled ->
                     if (!wantEnabled) {
                         onTriggerPrankUnblock("Núcleo de Bloqueo")
@@ -139,17 +147,13 @@ fun BlockerDashboardScreen(
             }
         }
 
-        // 3. Cápsulas rápidas de categorías
-        item(key = "quick_category_block") {
-            QuickCategoryRow(
-                apps = apps,
-                blockRules = blockRules,
-                onApplyCategoryBlock = { category, wantBlocked ->
-                    if (!wantBlocked) {
-                        onTriggerPrankUnblock(category.title)
-                    } else {
-                        onApplyCategoryBlock(category, true)
-                    }
+        // 3. Filtro de visualización por categoría (ya NO bloquea todas las apps por accidente)
+        item(key = "quick_category_filter") {
+            CategorySummaryFilterRow(
+                allBlockedApps = allBlockedAppsWithRules.map { it.first },
+                selectedCategory = selectedCategoryFilter,
+                onSelectCategory = { category ->
+                    selectedCategoryFilter = if (selectedCategoryFilter == category) null else category
                 }
             )
         }
@@ -281,30 +285,28 @@ private fun MasterBlockerCard(
 }
 
 @Composable
-private fun QuickCategoryRow(
-    apps: List<InstalledAppInfo>,
-    blockRules: Map<String, AppBlockRule>,
-    onApplyCategoryBlock: (AppCategory, Boolean) -> Unit
+private fun CategorySummaryFilterRow(
+    allBlockedApps: List<InstalledAppInfo>,
+    selectedCategory: AppCategory?,
+    onSelectCategory: (AppCategory) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         AppCategory.entries.forEach { category ->
-            val categoryApps = apps.filter { it.category == category }
-            val blockedInCategory = categoryApps.count { blockRules[it.packageName]?.isBlocked == true }
-            val allBlocked = categoryApps.isNotEmpty() && blockedInCategory == categoryApps.size
+            val blockedInCategory = allBlockedApps.count { it.category == category }
+            val isSelected = selectedCategory == category
             val shortTitle = when (category) {
                 AppCategory.SOCIAL -> "Social"
-                AppCategory.RECREATIONAL -> "Recreativas"
+                AppCategory.RECREATIONAL -> "Ocio"
                 AppCategory.OTHER -> "Otras"
             }
 
             FuturisticGlassButton(
-                text = "$shortTitle ($blockedInCategory/${categoryApps.size})",
-                isSelected = allBlocked,
-                enabled = categoryApps.isNotEmpty(),
-                onClick = { onApplyCategoryBlock(category, !allBlocked) },
+                text = "$shortTitle ($blockedInCategory)",
+                isSelected = isSelected,
+                onClick = { onSelectCategory(category) },
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
             )

@@ -45,7 +45,24 @@ class AppPreferencesRepository private constructor(context: Context) {
     val cycleStartTimestampMs: StateFlow<Long> = _cycleStartTimestampMs.asStateFlow()
 
     init {
+        clearAccidentalMassBlockOnce()
         checkAndReset24HourCycleIfNeeded()
+    }
+
+    /**
+     * Limpia por única vez el bloqueo masivo activado por accidente desde las píldoras de Núcleo,
+     * restaurando las apps sin perder la configuración de tema ni el estado del tutorial.
+     */
+    private fun clearAccidentalMassBlockOnce() {
+        if (!prefs.getBoolean(KEY_CLEANUP_ACCIDENTAL_MASS_BLOCK_V1, false)) {
+            prefs.edit()
+                .remove(KEY_BLOCK_RULES)
+                .putInt(KEY_PRANK_ATTEMPT_7BIT, 0)
+                .putBoolean(KEY_CLEANUP_ACCIDENTAL_MASS_BLOCK_V1, true)
+                .apply()
+            _blockRules.value = emptyMap()
+            _prankAttemptCount7Bit.value = 0u
+        }
     }
 
     /**
@@ -290,6 +307,8 @@ class AppPreferencesRepository private constructor(context: Context) {
         private const val KEY_BLOCK_RULES = "key_block_rules"
         private const val KEY_PRANK_ATTEMPT_7BIT = "key_prank_attempt_count"
         private const val KEY_CYCLE_START_TIMESTAMP_MS = "key_cycle_start_timestamp_ms"
+        private const val KEY_CLEANUP_ACCIDENTAL_MASS_BLOCK_V1 =
+            "key_cleanup_accidental_mass_block_v1"
 
         val SEVEN_BIT_UNSIGNED_MASK: UByte = 0x7Fu
         val MAX_PRANK_ATTEMPTS_7BIT: UByte = 101u

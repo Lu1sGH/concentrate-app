@@ -151,7 +151,7 @@ class AppBlockerMonitorService : Service() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("Bloqueador de aplicaciones activo")
+            .setContentTitle("Concentrate • Núcleo activo")
             .setContentText("Supervisando $blockedAppsCount aplicaciones restringidas")
             .setContentIntent(pendingIntent)
             .setOngoing(true)

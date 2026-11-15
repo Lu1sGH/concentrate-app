@@ -11,7 +11,10 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,6 +57,8 @@ import com.example.oakridgeproject.service.AppBlockerAccessibilityService
 import com.example.oakridgeproject.service.AppBlockerMonitorService
 import com.example.oakridgeproject.ui.BlockedAppActivity
 import com.example.oakridgeproject.ui.components.AnimatedOnboardingTutorial
+import com.example.oakridgeproject.ui.components.ConcentrateBrandIcon
+import com.example.oakridgeproject.ui.components.ConcentrateLoadingScreen
 import com.example.oakridgeproject.ui.components.EndlessPrankUnblockDialog
 import com.example.oakridgeproject.ui.components.FuturisticFloatingDock
 import com.example.oakridgeproject.ui.components.INSTANT_LOCK_AFTER_ATTEMPT_7BIT
@@ -65,6 +70,7 @@ import com.example.oakridgeproject.ui.screens.SettingsScreen
 import com.example.oakridgeproject.ui.theme.OakRidgeProjectTheme
 import com.example.oakridgeproject.util.AppUsageHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,6 +125,7 @@ fun OakRidgeBlockerApp(repository: AppPreferencesRepository) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var installedApps by remember { mutableStateOf<List<InstalledAppInfo>>(emptyList()) }
     var isLoadingApps by remember { mutableStateOf(true) }
+    var hasCompletedInitialBoot by rememberSaveable { mutableStateOf(false) }
 
     var hasUsagePermission by remember {
         mutableStateOf(AppUsageHelper.hasUsageStatsPermission(context))
@@ -205,13 +212,19 @@ fun OakRidgeBlockerApp(repository: AppPreferencesRepository) {
 
     LaunchedEffect(refreshTrigger) {
         repository.checkAndReset24HourCycleIfNeeded()
+        val isFirstBoot = !hasCompletedInitialBoot && installedApps.isEmpty()
         if (installedApps.isEmpty()) {
             isLoadingApps = true
         }
         installedApps = withContext(Dispatchers.IO) {
-            AppUsageHelper.getInstalledApps(context)
+            val appsDeferred = async { AppUsageHelper.getInstalledApps(context) }
+            if (isFirstBoot) {
+                delay(1350L)
+            }
+            appsDeferred.await()
         }
         isLoadingApps = false
+        hasCompletedInitialBoot = true
     }
 
     if (!hasSeenTutorial) {
@@ -223,234 +236,237 @@ fun OakRidgeBlockerApp(repository: AppPreferencesRepository) {
         return
     }
 
-    val openUsageSettings = {
-        context.startActivity(
-            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    Crossfade(
+        targetState = isLoadingApps && installedApps.isEmpty(),
+        animationSpec = tween(durationMillis = 480),
+        label = "startup_loading_crossfade"
+    ) { showStartupScreen ->
+        if (showStartupScreen) {
+            ConcentrateLoadingScreen()
+        } else {
+            val openUsageSettings = {
+                context.startActivity(
+                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
             }
-        )
-    }
 
-    val openOverlaySettings = {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:${context.packageName}")
-        ).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        runCatching {
-            context.startActivity(intent)
-        }.onFailure {
-            context.startActivity(
-                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+            val openOverlaySettings = {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:${context.packageName}")
+                ).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-            )
-        }
-        Unit
-    }
-
-    val openAccessibilitySettings = {
-        context.startActivity(
-            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                runCatching {
+                    context.startActivity(intent)
+                }.onFailure {
+                    context.startActivity(
+                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                    )
+                }
+                Unit
             }
-        )
-    }
 
-    val needsPermissionsSetup =
-        !hasUsagePermission || !hasOverlayPermission || !hasAccessibilityPermission
-    if (needsPermissionsSetup && !permissionsDialogDismissedInSession) {
-        InitialPermissionsSetupDialog(
-            hasUsagePermission = hasUsagePermission,
-            hasOverlayPermission = hasOverlayPermission,
-            hasAccessibilityPermission = hasAccessibilityPermission,
-            onRequestUsagePermission = openUsageSettings,
-            onRequestOverlayPermission = openOverlaySettings,
-            onRequestAccessibilityPermission = openAccessibilitySettings,
-            onDismiss = { permissionsDialogDismissedInSession = true }
-        )
-    }
+            val openAccessibilitySettings = {
+                context.startActivity(
+                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }
 
-    if (prankVisible && prankTargetName != null) {
-        val effectiveCount: UByte =
-            if (prankAttemptCount7Bit == 0u.toUByte()) 1u else prankAttemptCount7Bit
-        EndlessPrankUnblockDialog(
-            targetName = prankTargetName.orEmpty(),
-            attemptCount7Bit = effectiveCount,
-            remainingCycleMillis = repository.getRemainingCycleMillis(),
-            onProceedPrankClick = {
-                val nextAttempt7Bit = repository.incrementPrankAttemptCount()
-                if (nextAttempt7Bit > INSTANT_LOCK_AFTER_ATTEMPT_7BIT) {
-                    prankVisible = false
-                    AppBlockerAccessibilityService.lockDeviceScreen(context)
-                } else {
-                    coroutineScope.launch {
+            val needsPermissionsSetup =
+                !hasUsagePermission || !hasOverlayPermission || !hasAccessibilityPermission
+            if (needsPermissionsSetup && !permissionsDialogDismissedInSession) {
+                InitialPermissionsSetupDialog(
+                    hasUsagePermission = hasUsagePermission,
+                    hasOverlayPermission = hasOverlayPermission,
+                    hasAccessibilityPermission = hasAccessibilityPermission,
+                    onRequestUsagePermission = openUsageSettings,
+                    onRequestOverlayPermission = openOverlaySettings,
+                    onRequestAccessibilityPermission = openAccessibilitySettings,
+                    onDismiss = { permissionsDialogDismissedInSession = true }
+                )
+            }
+
+            if (prankVisible && prankTargetName != null) {
+                val effectiveCount: UByte =
+                    if (prankAttemptCount7Bit == 0u.toUByte()) 1u else prankAttemptCount7Bit
+                EndlessPrankUnblockDialog(
+                    targetName = prankTargetName.orEmpty(),
+                    attemptCount7Bit = effectiveCount,
+                    remainingCycleMillis = repository.getRemainingCycleMillis(),
+                    onProceedPrankClick = {
+                        val nextAttempt7Bit = repository.incrementPrankAttemptCount()
+                        if (nextAttempt7Bit > INSTANT_LOCK_AFTER_ATTEMPT_7BIT) {
+                            prankVisible = false
+                            AppBlockerAccessibilityService.lockDeviceScreen(context)
+                        } else {
+                            coroutineScope.launch {
+                                prankVisible = false
+                                delay(140L)
+                                prankVisible = true
+                            }
+                        }
+                    },
+                    onAcceptFateDismiss = {
                         prankVisible = false
-                        delay(140L)
-                        prankVisible = true
+                        prankTargetName = null
+                    },
+                    onLockDeviceNow = {
+                        prankVisible = false
+                        AppBlockerAccessibilityService.lockDeviceScreen(context)
+                    }
+                )
+            }
+
+            val activeBlockedCount = remember(blockRules) {
+                blockRules.values.count { it.isBlocked }
+            }
+
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 22.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ConcentrateBrandIcon(size = 30.dp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "CONCENTRATE",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    letterSpacing = 2.6.sp
+                                ),
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                text = when (selectedTab) {
+                                    0 -> "CATÁLOGO DE APPS"
+                                    1 -> "NÚCLEO DE ENFOQUE"
+                                    else -> "SISTEMA"
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    letterSpacing = 1.4.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = "$activeBlockedCount ACTIVAS",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                letterSpacing = 1.2.sp
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
-            },
-            onAcceptFateDismiss = {
-                prankVisible = false
-                prankTargetName = null
-            },
-            onLockDeviceNow = {
-                prankVisible = false
-                AppBlockerAccessibilityService.lockDeviceScreen(context)
-            }
-        )
-    }
-
-    val activeBlockedCount = remember(blockRules) {
-        blockRules.values.count { it.isBlocked }
-    }
-
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 22.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "◈",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = when (selectedTab) {
-                        0 -> "CATÁLOGO"
-                        1 -> "NÚCLEO"
-                        else -> "SISTEMA"
-                    },
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        letterSpacing = 2.2.sp
-                    ),
-                    fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "$activeBlockedCount ACTIVAS",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        letterSpacing = 1.2.sp
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = innerPadding.calculateTopPadding())
-        ) {
-            when (selectedTab) {
-                0 -> {
-                    AppSelectionScreen(
-                        apps = installedApps,
-                        blockRules = blockRules,
-                        isLoading = isLoadingApps,
-                        hasUsagePermission = hasUsagePermission,
-                        hasOverlayPermission = hasOverlayPermission,
-                        hasAccessibilityPermission = hasAccessibilityPermission,
-                        onToggleAppBlock = { packageName, isBlocked ->
-                            repository.setAppBlocked(packageName = packageName, isBlocked = isBlocked)
-                        },
-                        onUpdateAppThreshold = { packageName, limitSeconds ->
-                            repository.updateAppThreshold(
-                                packageName = packageName,
-                                limitSeconds = limitSeconds
+            ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = innerPadding.calculateTopPadding())
+                ) {
+                    when (selectedTab) {
+                        0 -> {
+                            AppSelectionScreen(
+                                apps = installedApps,
+                                blockRules = blockRules,
+                                isLoading = isLoadingApps,
+                                hasUsagePermission = hasUsagePermission,
+                                hasOverlayPermission = hasOverlayPermission,
+                                hasAccessibilityPermission = hasAccessibilityPermission,
+                                onUpdateAppThreshold = { packageName, limitSeconds ->
+                                    repository.updateAppThreshold(
+                                        packageName = packageName,
+                                        limitSeconds = limitSeconds
+                                    )
+                                },
+                                onTriggerPrankUnblock = handleNewPrankAttempt,
+                                onRequestUsagePermission = openUsageSettings,
+                                onRequestOverlayPermission = openOverlaySettings,
+                                onRequestAccessibilityPermission = openAccessibilitySettings
                             )
-                        },
-                        onApplyCategoryBlock = { category, isBlocked ->
-                            val pkgs = installedApps
-                                .filter { it.category == category }
-                                .map { it.packageName }
-                            repository.applyBlockToPackages(pkgs, isBlocked)
-                        },
-                        onTriggerPrankUnblock = handleNewPrankAttempt,
-                        onRequestUsagePermission = openUsageSettings,
-                        onRequestOverlayPermission = openOverlaySettings,
-                        onRequestAccessibilityPermission = openAccessibilitySettings
-                    )
-                }
+                        }
 
-                1 -> {
-                    BlockerDashboardScreen(
-                        apps = installedApps,
-                        blockRules = blockRules,
-                        isBlockerEnabled = isBlockerEnabled,
-                        hasUsagePermission = hasUsagePermission,
-                        hasOverlayPermission = hasOverlayPermission,
-                        hasAccessibilityPermission = hasAccessibilityPermission,
-                        onToggleBlockerMaster = { enabled ->
-                            repository.setBlockerEnabled(enabled)
-                        },
-                        onUpdateAppThreshold = { packageName, limitSeconds ->
-                            repository.updateAppThreshold(
-                                packageName = packageName,
-                                limitSeconds = limitSeconds
+                        1 -> {
+                            BlockerDashboardScreen(
+                                apps = installedApps,
+                                blockRules = blockRules,
+                                isBlockerEnabled = isBlockerEnabled,
+                                hasUsagePermission = hasUsagePermission,
+                                hasOverlayPermission = hasOverlayPermission,
+                                hasAccessibilityPermission = hasAccessibilityPermission,
+                                onToggleBlockerMaster = { enabled ->
+                                    repository.setBlockerEnabled(enabled)
+                                },
+                                onUpdateAppThreshold = { packageName, limitSeconds ->
+                                    repository.updateAppThreshold(
+                                        packageName = packageName,
+                                        limitSeconds = limitSeconds
+                                    )
+                                },
+                                onTriggerPrankUnblock = handleNewPrankAttempt,
+                                onTestBlockApp = { app, rule ->
+                                    val intent = Intent(context, BlockedAppActivity::class.java).apply {
+                                        putExtra(BlockedAppActivity.EXTRA_PACKAGE_NAME, app.packageName)
+                                        putExtra(BlockedAppActivity.EXTRA_LIMIT_SECONDS, rule.limitSeconds)
+                                        putExtra(
+                                            BlockedAppActivity.EXTRA_USED_SECONDS,
+                                            app.usedSecondsToday
+                                        )
+                                    }
+                                    context.startActivity(intent)
+                                },
+                                onNavigateToAppsCatalog = { selectedTab = 0 },
+                                onRequestUsagePermission = openUsageSettings,
+                                onRequestOverlayPermission = openOverlaySettings,
+                                onRequestAccessibilityPermission = openAccessibilitySettings
                             )
-                        },
-                        onApplyCategoryBlock = { category, isBlocked ->
-                            val pkgs = installedApps
-                                .filter { it.category == category }
-                                .map { it.packageName }
-                            repository.applyBlockToPackages(pkgs, isBlocked)
-                        },
-                        onTriggerPrankUnblock = handleNewPrankAttempt,
-                        onTestBlockApp = { app, rule ->
-                            val intent = Intent(context, BlockedAppActivity::class.java).apply {
-                                putExtra(BlockedAppActivity.EXTRA_PACKAGE_NAME, app.packageName)
-                                putExtra(BlockedAppActivity.EXTRA_LIMIT_SECONDS, rule.limitSeconds)
-                                putExtra(BlockedAppActivity.EXTRA_USED_SECONDS, app.usedSecondsToday)
-                            }
-                            context.startActivity(intent)
-                        },
-                        onNavigateToAppsCatalog = { selectedTab = 0 },
-                        onRequestUsagePermission = openUsageSettings,
-                        onRequestOverlayPermission = openOverlaySettings,
-                        onRequestAccessibilityPermission = openAccessibilitySettings
-                    )
-                }
+                        }
 
-                else -> {
-                    SettingsScreen(
-                        selectedThemeMode = themeMode,
-                        dynamicColorEnabled = dynamicColor,
-                        hasUsagePermission = hasUsagePermission,
-                        hasOverlayPermission = hasOverlayPermission,
-                        hasAccessibilityPermission = hasAccessibilityPermission,
-                        onSelectThemeMode = { mode ->
-                            repository.setThemeMode(mode)
-                        },
-                        onToggleDynamicColor = { enabled ->
-                            repository.setDynamicColor(enabled)
-                        },
-                        onOpenUsageSettings = openUsageSettings,
-                        onOpenOverlaySettings = openOverlaySettings,
-                        onOpenAccessibilitySettings = openAccessibilitySettings
+                        else -> {
+                            SettingsScreen(
+                                selectedThemeMode = themeMode,
+                                dynamicColorEnabled = dynamicColor,
+                                hasUsagePermission = hasUsagePermission,
+                                hasOverlayPermission = hasOverlayPermission,
+                                hasAccessibilityPermission = hasAccessibilityPermission,
+                                onSelectThemeMode = { mode ->
+                                    repository.setThemeMode(mode)
+                                },
+                                onToggleDynamicColor = { enabled ->
+                                    repository.setDynamicColor(enabled)
+                                },
+                                onOpenUsageSettings = openUsageSettings,
+                                onOpenOverlaySettings = openOverlaySettings,
+                                onOpenAccessibilitySettings = openAccessibilitySettings
+                            )
+                        }
+                    }
+
+                    // Dock flotante inferior con estética futurista
+                    FuturisticFloatingDock(
+                        selectedTab = selectedTab,
+                        onSelectTab = { selectedTab = it },
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
                     )
                 }
             }
-
-            // Dock flotante inferior con estética futurista
-            FuturisticFloatingDock(
-                selectedTab = selectedTab,
-                onSelectTab = { selectedTab = it },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-            )
         }
     }
 }

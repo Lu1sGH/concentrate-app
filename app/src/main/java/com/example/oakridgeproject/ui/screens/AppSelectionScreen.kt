@@ -27,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -51,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.example.oakridgeproject.model.AppBlockRule
 import com.example.oakridgeproject.model.AppCategory
 import com.example.oakridgeproject.model.InstalledAppInfo
+import com.example.oakridgeproject.ui.components.ConcentrateLoadingScreen
 import com.example.oakridgeproject.ui.components.FuturisticGlassButton
 import com.example.oakridgeproject.ui.components.FuturisticGlowButton
 import com.example.oakridgeproject.ui.components.FuturisticOrbToggle
@@ -65,9 +65,7 @@ fun AppSelectionScreen(
     hasUsagePermission: Boolean,
     hasOverlayPermission: Boolean,
     hasAccessibilityPermission: Boolean,
-    onToggleAppBlock: (String, Boolean) -> Unit,
     onUpdateAppThreshold: (String, Long) -> Unit,
-    onApplyCategoryBlock: (AppCategory, Boolean) -> Unit,
     onTriggerPrankUnblock: (String) -> Unit,
     onRequestUsagePermission: () -> Unit,
     onRequestOverlayPermission: () -> Unit,
@@ -147,12 +145,9 @@ fun AppSelectionScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         if (isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(strokeWidth = 2.dp)
-            }
+            ConcentrateLoadingScreen(
+                modifier = Modifier.fillMaxSize()
+            )
         } else if (groupedApps.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -171,22 +166,10 @@ fun AppSelectionScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 groupedApps.forEach { (category, categoryApps) ->
-                    val allCategoryBlocked = categoryApps.all {
-                        blockRules[it.packageName]?.isBlocked == true
-                    }
-
                     item(key = "header_${category.name}") {
                         CategorySectionHeader(
                             category = category,
-                            count = categoryApps.size,
-                            allBlocked = allCategoryBlocked,
-                            onToggleAllCategory = {
-                                if (allCategoryBlocked) {
-                                    onTriggerPrankUnblock(category.title)
-                                } else {
-                                    onApplyCategoryBlock(category, true)
-                                }
-                            }
+                            count = categoryApps.size
                         )
                     }
 
@@ -204,7 +187,8 @@ fun AppSelectionScreen(
                                 if (!wantBlocked && isCurrentlyBlocked) {
                                     onTriggerPrankUnblock(app.appName)
                                 } else {
-                                    onToggleAppBlock(app.packageName, true)
+                                    // Preguntar siempre por el tiempo antes de activar el bloqueo
+                                    appEditingThreshold = app
                                 }
                             },
                             onConfigureThreshold = {
@@ -220,8 +204,12 @@ fun AppSelectionScreen(
     appEditingThreshold?.let { targetApp ->
         val currentRule = blockRules[targetApp.packageName]
         val isAlreadyBlocked = currentRule?.isBlocked == true
-        val currentLimitSec = currentRule?.limitSeconds
-            ?: AppBlockRule.DEFAULT_INSTANT_BLOCK_THRESHOLD_SECONDS
+        val currentLimitSec = if (isAlreadyBlocked) {
+            currentRule.limitSeconds
+        } else {
+            // Sugerir 15 minutos (900s) por defecto al activar por primera vez, en lugar de 0s instantáneo
+            currentRule?.limitSeconds?.takeIf { it > 0L } ?: 900L
+        }
 
         ThresholdConfigDialog(
             app = targetApp,
@@ -230,7 +218,7 @@ fun AppSelectionScreen(
             onDismiss = { appEditingThreshold = null },
             onConfirmSeconds = { newLimitSeconds ->
                 appEditingThreshold = null
-                if (isAlreadyBlocked && newLimitSeconds > currentLimitSec) {
+                if (isAlreadyBlocked && newLimitSeconds > currentRule.limitSeconds) {
                     onTriggerPrankUnblock(targetApp.appName)
                 } else {
                     onUpdateAppThreshold(targetApp.packageName, newLimitSeconds)
@@ -333,39 +321,27 @@ private fun CategoryFilterRow(
 @Composable
 private fun CategorySectionHeader(
     category: AppCategory,
-    count: Int,
-    allBlocked: Boolean,
-    onToggleAllCategory: () -> Unit
+    count: Int
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 14.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = category.title.uppercase(),
-                style = MaterialTheme.typography.labelLarge.copy(
-                    letterSpacing = 1.4.sp
-                ),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "[$count]",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        FuturisticGlassButton(
-            text = if (allBlocked) "🔒 Grupo activo" else "+ Bloquear grupo",
-            isSelected = allBlocked,
-            onClick = onToggleAllCategory,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+        Text(
+            text = category.title.uppercase(),
+            style = MaterialTheme.typography.labelLarge.copy(
+                letterSpacing = 1.4.sp
+            ),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "[$count]",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -524,13 +500,13 @@ fun ThresholdConfigDialog(
     var secondsInput by remember { mutableStateOf(initialRemSeconds) }
 
     val presets = listOf(
-        0L to "0s",
-        10L to "10s",
-        60L to "1m",
         300L to "5m",
         900L to "15m",
         1800L to "30m",
-        3600L to "1h"
+        3600L to "1h",
+        60L to "1m",
+        10L to "10s",
+        0L to "0s (Instantáneo)"
     )
 
     AlertDialog(
@@ -548,7 +524,7 @@ fun ThresholdConfigDialog(
                     text = if (isAlreadyBlocked) {
                         "Límite actual: ${AppUsageHelper.formatDurationThreshold(initialSeconds)} • Solo reducir"
                     } else {
-                        "Configura el umbral X de uso"
+                        "¿Cuánto tiempo deseas permitir antes de bloquear?"
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
